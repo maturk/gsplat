@@ -332,11 +332,11 @@ __global__ void rasterize_backward_depth_kernel(
     const float* __restrict__ final_Ts,
     const int* __restrict__ final_index,
     const float3* __restrict__ v_output,
-    const float* __restrict__ v_depth_out,
+    const float2* __restrict__ v_depth_out,
     float2* __restrict__ v_xy,
     float3* __restrict__ v_conic,
     float3* __restrict__ v_rgb,
-    float* __restrict__ v_depth,
+    float2* __restrict__ v_depth,
     float* __restrict__ v_opacity
 ) {
     auto block = cg::this_thread_block();
@@ -381,7 +381,7 @@ __global__ void rasterize_backward_depth_kernel(
 
     // df/d_out for this pixel
     const float3 v_out = v_output[pix_id];
-    const float v_depth_pixel = v_depth_out[pix_id];
+    const float v_depth_pixel = v_depth_out[pix_id].x;
 
     // collect and process batches of gaussians
     // each thread loads one gaussian at a time before rasterizing
@@ -505,7 +505,10 @@ __global__ void rasterize_backward_depth_kernel(
                 atomicAdd(v_xy_ptr + 2*g + 1, v_xy_local.y);
                 
                 atomicAdd(v_opacity + g, v_opacity_local);
-                atomicAdd(v_depth + g, v_depth_local* v_depth_pixel);
+
+                float* v_depth_ptr = (float*)(v_depth);
+                atomicAdd(v_depth_ptr + 2*g + 0, v_depth_local* v_depth_pixel);
+                atomicAdd(v_depth_ptr + 2*g + 1, v_depth_local* v_depth_pixel); // TODO
             }
         }
     }

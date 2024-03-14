@@ -462,7 +462,7 @@ rasterize_forward_depth_tensor(
         {img_height, img_width, channels}, xys.options().dtype(torch::kFloat32)
     );
     torch::Tensor out_depth = torch::zeros(
-        {img_height, img_width}, xys.options().dtype(torch::kFloat32)
+        {img_height, img_width, 2}, xys.options().dtype(torch::kFloat32)
     );
     torch::Tensor final_Ts = torch::zeros(
         {img_height, img_width}, xys.options().dtype(torch::kFloat32)
@@ -484,7 +484,7 @@ rasterize_forward_depth_tensor(
         final_Ts.contiguous().data_ptr<float>(),
         final_idx.contiguous().data_ptr<int>(),
         (float3 *)out_img.contiguous().data_ptr<float>(),
-        out_depth.contiguous().data_ptr<float>(),
+        (float2 *)out_depth.contiguous().data_ptr<float>(),
         *(float3 *)background.contiguous().data_ptr<float>()
     );
 
@@ -746,6 +746,7 @@ std::
         const torch::Tensor &final_Ts,
         const torch::Tensor &final_idx,
         const torch::Tensor &v_output, // dL_dout_color
+        const torch::Tensor &v_output_alpha, // dL_dout_alpha
         const torch::Tensor &v_depth_out // dL_dout_depth
     ) {
 
@@ -775,7 +776,7 @@ std::
     torch::Tensor v_conic = torch::zeros({num_points, 3}, xys.options());
     torch::Tensor v_colors =
         torch::zeros({num_points, channels}, xys.options());
-    torch::Tensor v_depth = torch::zeros({num_points}, xys.options());
+    torch::Tensor v_depth = torch::zeros({num_points, 2}, xys.options());
     torch::Tensor v_opacity = torch::zeros({num_points, 1}, xys.options());
 
     rasterize_backward_depth_kernel<<<tile_bounds, block>>>(
@@ -792,11 +793,11 @@ std::
         final_Ts.contiguous().data_ptr<float>(),
         final_idx.contiguous().data_ptr<int>(),
         (float3 *)v_output.contiguous().data_ptr<float>(),
-        v_depth_out.contiguous().data_ptr<float>(),
+        (float2 *)v_depth_out.contiguous().data_ptr<float>(),
         (float2 *)v_xy.contiguous().data_ptr<float>(),
         (float3 *)v_conic.contiguous().data_ptr<float>(),
         (float3 *)v_colors.contiguous().data_ptr<float>(),
-        v_depth.contiguous().data_ptr<float>(),
+        (float2 *)v_depth.contiguous().data_ptr<float>(),
         v_opacity.contiguous().data_ptr<float>()
     );
 

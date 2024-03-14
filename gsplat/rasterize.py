@@ -51,7 +51,7 @@ def rasterize_gaussians(
 
         - **out_img** (Tensor): N-dimensional rendered output image.
         - **out_alpha** (Optional[Tensor]): Alpha channel of the rendered output image.
-        - **out_depth** (Optional[Tensor]): Depth image.
+        - **out_depth** (Optional[Tensor]): Channel 1: Depth image, Channel 2: Variance of the depth image.
     """
     assert block_width > 1 and block_width <= 16, "block_width must be between 2 and 16"
     if colors.dtype == torch.uint8:
@@ -259,7 +259,7 @@ class _RasterizeGaussians(Function):
                 v_xy, v_conic, v_colors, v_opacity = rasterize_fn(
                     img_height,
                     img_width,
-                ctx.block_width,
+                    ctx.block_width,
                     gaussian_ids_sorted,
                     tile_bins,
                     xys,
@@ -301,6 +301,7 @@ class _RasterizeGaussians(Function):
                 ) = _C.rasterize_backward_depth(
                     img_height,
                     img_width,
+                    ctx.block_width,
                     gaussian_ids_sorted.contiguous(),
                     tile_bins,
                     xys.contiguous(),
@@ -312,6 +313,7 @@ class _RasterizeGaussians(Function):
                     final_Ts.contiguous(),
                     final_idx.contiguous(),
                     v_out_img.contiguous(),
+                    v_out_alpha.contiguous(),
                     v_out_depth.contiguous(),
                 )
 
