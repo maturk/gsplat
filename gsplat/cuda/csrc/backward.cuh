@@ -90,7 +90,7 @@ __global__ void rasterize_backward_depth_kernel(
     float2* __restrict__ v_xy,
     float3* __restrict__ v_conic,
     float3* __restrict__ v_rgb,
-    float2* __restrict__ v_depth,
+    float* __restrict__ v_depth,
     float* __restrict__ v_opacity
 );
 

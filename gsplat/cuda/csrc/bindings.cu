@@ -776,7 +776,7 @@ std::
     torch::Tensor v_conic = torch::zeros({num_points, 3}, xys.options());
     torch::Tensor v_colors =
         torch::zeros({num_points, channels}, xys.options());
-    torch::Tensor v_depth = torch::zeros({num_points, 2}, xys.options());
+    torch::Tensor v_depth = torch::zeros({num_points, 1}, xys.options());
     torch::Tensor v_opacity = torch::zeros({num_points, 1}, xys.options());
 
     rasterize_backward_depth_kernel<<<tile_bounds, block>>>(
@@ -797,7 +797,7 @@ std::
         (float2 *)v_xy.contiguous().data_ptr<float>(),
         (float3 *)v_conic.contiguous().data_ptr<float>(),
         (float3 *)v_colors.contiguous().data_ptr<float>(),
-        (float2 *)v_depth.contiguous().data_ptr<float>(),
+        (float *)v_depth.contiguous().data_ptr<float>(),
         v_opacity.contiguous().data_ptr<float>()
     );
 
