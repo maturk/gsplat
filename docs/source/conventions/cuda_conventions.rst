@@ -58,7 +58,7 @@ Config Constants
 ----------------
 
 We fix the total number of threads within a block to ``N_THREADS = 256``. This is compatible with most CUDA devices. For 1D blocks the block dimension is then given by ``const int blockDim = 256;`` and for 2D blocks we set ``block_width = 16`` by default such that the blockDim is ``const dim3 blockDim = {16, 16, 1};``.
-
+Users have the ability to adjust the default "block_width" to values that are powers of 2 and fall below 16.
 
 Citations
 -------------
