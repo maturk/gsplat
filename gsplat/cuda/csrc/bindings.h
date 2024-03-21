@@ -235,6 +235,7 @@ std::
         const torch::Tensor &background,
         const torch::Tensor &final_Ts,
         const torch::Tensor &final_idx,
+        const torch::Tensor &depth_out,
         const torch::Tensor &v_output, // dL_dout_color
         const torch::Tensor &v_output_alpha,
         const torch::Tensor &v_depth_out // dL_dout_depth

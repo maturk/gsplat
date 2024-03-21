@@ -745,8 +745,9 @@ std::
         const torch::Tensor &background,
         const torch::Tensor &final_Ts,
         const torch::Tensor &final_idx,
+        const torch::Tensor &depth_out,
         const torch::Tensor &v_output, // dL_dout_color
-        const torch::Tensor &v_output_alpha, // dL_dout_alpha
+        const torch::Tensor &v_output_alpha, // dL_dout_alpha // TODO: investigate why not using v_output_alpha
         const torch::Tensor &v_depth_out // dL_dout_depth
     ) {
 
@@ -792,6 +793,7 @@ std::
         *(float3 *)background.contiguous().data_ptr<float>(),
         final_Ts.contiguous().data_ptr<float>(),
         final_idx.contiguous().data_ptr<int>(),
+        depth_out.contiguous().data_ptr<float>(),
         (float3 *)v_output.contiguous().data_ptr<float>(),
         (float2 *)v_depth_out.contiguous().data_ptr<float>(),
         (float2 *)v_xy.contiguous().data_ptr<float>(),

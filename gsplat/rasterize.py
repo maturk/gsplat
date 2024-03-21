@@ -199,7 +199,7 @@ class _RasterizeGaussians(Function):
                 final_Ts,
                 final_idx,
             )
-        else:
+        else:  # return depth
             ctx.save_for_backward(
                 gaussian_ids_sorted,
                 tile_bins,
@@ -211,6 +211,7 @@ class _RasterizeGaussians(Function):
                 background,
                 final_Ts,
                 final_idx,
+                out_depth[:, :, 0:1], # depth image but no variance image
             )
 
         if return_alpha:
@@ -272,7 +273,7 @@ class _RasterizeGaussians(Function):
                     v_out_img,
                     v_out_alpha,
                 )
-        else:
+        else: # v_out_depth is Not None
             (
                 gaussian_ids_sorted,
                 tile_bins,
@@ -284,6 +285,7 @@ class _RasterizeGaussians(Function):
                 background,
                 final_Ts,
                 final_idx,
+                depth_im
             ) = ctx.saved_tensors
             if num_intersects < 1:
                 v_xy = torch.zeros_like(xys)
@@ -312,6 +314,7 @@ class _RasterizeGaussians(Function):
                     background.contiguous(),
                     final_Ts.contiguous(),
                     final_idx.contiguous(),
+                    depth_im.contiguous(),
                     v_out_img.contiguous(),
                     v_out_alpha.contiguous(),
                     v_out_depth.contiguous(),
