@@ -333,6 +333,7 @@ __global__ void rasterize_backward_depth_kernel(
     const int* __restrict__ final_index,
     const float* __restrict__ depth_out,
     const float3* __restrict__ v_output,
+    const float* __restrict__ v_output_alpha,
     const float2* __restrict__ v_depth_out,
     float2* __restrict__ v_xy,
     float3* __restrict__ v_conic,
@@ -383,6 +384,7 @@ __global__ void rasterize_backward_depth_kernel(
     const float3 v_out = v_output[pix_id];
     const float v_depth_pixel = v_depth_out[pix_id].x;
     const float v_variance_pixel = v_depth_out[pix_id].y;
+    const float v_out_alpha = v_output_alpha[pix_id];
 
     // rendered depth for this pixel
     const float depth_pixel = depth_out[pix_id];
@@ -500,6 +502,8 @@ __global__ void rasterize_backward_depth_kernel(
                 // contribution from variance image pixel term E[d^2]                  
                 v_alpha += v_variance_pixel *                   // dL/dV_i
                            (depth_sq*T - variance_buffer * ra); // dV_i/da_n
+                // contribution from alpha image
+                v_alpha += T_final * ra * v_out_alpha;
 
                 // update the running sum
                 buffer.x        += rgb.x    * fac;

@@ -87,6 +87,7 @@ __global__ void rasterize_backward_depth_kernel(
     const int* __restrict__ final_index,
     const float* __restrict__ depth_out,
     const float3* __restrict__ v_output,
+    const float* __restrict__ v_output_alpha,
     const float2* __restrict__ v_depth_out,
     float2* __restrict__ v_xy,
     float3* __restrict__ v_conic,
