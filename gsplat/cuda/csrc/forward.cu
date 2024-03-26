@@ -566,11 +566,25 @@ __global__ void rasterize_forward_depth(
         final_color.z = pix_out.z + T * background.z;
         out_img[pix_id] = final_color;
 
-        float2 depth_with_variance;
-        depth_with_variance.x = depth_out;
+        float2 depth_with_variance = {0.f, 0.f};
+        // if at least one gaussian is accumulated to this pixel
+        if (T < 1.f) {
+            // under constructed pixels (T > 0.f <--> sum_i(a_i*T_i) < 1.f) need to 
+            // be rescaled so that sum_i(a_i*T_i) == 1
+            // key fact is: (1 - T_n+1) == sum_i^n(a_i*T_i) 
+            float correction_factor = 1 / (1 - T);
+            depth_out *= correction_factor;
+            mean_depth_sq *= correction_factor;
 
-        // Var(D)   = E[D^2] - E[D]^2
-        depth_with_variance.y = mean_depth_sq - depth_out * depth_out;
+            depth_with_variance.x = depth_out;
+            // Var(D)   = E[D^2] - E[D]^2
+            float variance = mean_depth_sq - depth_out * depth_out;
+            // clamp for numerical stability
+            variance = std::max(0.f, variance);
+
+            depth_with_variance.y = variance;
+        }
+
 
         out_depth[pix_id] = depth_with_variance;
     }

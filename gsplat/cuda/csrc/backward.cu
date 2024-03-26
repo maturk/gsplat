@@ -331,7 +331,7 @@ __global__ void rasterize_backward_depth_kernel(
     const float3& __restrict__ background,
     const float* __restrict__ final_Ts,
     const int* __restrict__ final_index,
-    const float* __restrict__ depth_out,
+    const float2* __restrict__ depth_out,
     const float3* __restrict__ v_output,
     const float* __restrict__ v_output_alpha,
     const float2* __restrict__ v_depth_out,
@@ -363,7 +363,7 @@ __global__ void rasterize_backward_depth_kernel(
     // the contribution from gaussians behind the current one
     float3 buffer = {0.f, 0.f, 0.f};
     float depth_buffer = 0.f;
-    float variance_buffer = 0.f;
+    float depth_sq_buffer = 0.f;
     // index of last gaussian to contribute to this pixel
     const int bin_final = inside? final_index[pix_id] : 0;
 
@@ -380,14 +380,35 @@ __global__ void rasterize_backward_depth_kernel(
     __shared__ float3 rgbs_batch[MAX_BLOCK_SIZE];
     __shared__ float depths_batch[MAX_BLOCK_SIZE];
 
-    // df/d_out for this pixel
+    // rendered depth for this pixel
+    const float depth_pixel = depth_out[pix_id].x;
+    // rendered depth variance for this pixel
+    const float variance_pixel = depth_out[pix_id].y;
+
+    // dL/dC for this pixel
     const float3 v_out = v_output[pix_id];
-    const float v_depth_pixel = v_depth_out[pix_id].x;
+
+    // dL/dV for this pixel
     const float v_variance_pixel = v_depth_out[pix_id].y;
+
+    // total dL/dD for this pixel from: 
+    float v_depth_pixel =                    //(dL/dD)_tot   = 
+        v_depth_out[pix_id].x +              // dL/dD        +
+        v_variance_pixel * (-2*depth_pixel); // dL/dV * dV/dD
+
+    // dL/dA for this pixel
     const float v_out_alpha = v_output_alpha[pix_id];
 
-    // rendered depth for this pixel
-    const float depth_pixel = depth_out[pix_id];
+    // rendered variance for this pixel
+    // const float depth_pixel = variance_out[pix_id];
+
+    // pre-compute pixel-wide constants
+    // correction factor, see forward.cu
+    float cor_factor = 1 / (1 - T_final);
+
+    // Var(D) = E[D^2] - E[D]^2
+    // ==>  E[D^2] = Var(D) + E[D]^2
+    float sq_depth_pixel = variance_pixel + depth_pixel * depth_pixel;  
     
     // collect and process batches of gaussians
     // each thread loads one gaussian at a time before rasterizing
@@ -468,49 +489,74 @@ __global__ void rasterize_backward_depth_kernel(
                 v_rgb_local = {fac * v_out.x, fac * v_out.y, fac * v_out.z};
 
                 // update v_depth = dL/dd_n
-                // contribution from depth image pixel    
-                v_depth_local += v_depth_pixel *    // dL/dD_i
-                                 fac;               // dD_i/dd_n
+                // contribution from depth image (image itself and variance image term E[d]^2) 
+                v_depth_local += v_depth_pixel *    // dL/dD
+                                 cor_factor *       // dD/dD_tilde
+                                 fac;               // dD_tilde/dd_n
 
-                // contribution from variance image pixel term E[d]^2                              
-                v_depth_local += v_variance_pixel * // dL/dV_i
-                                 2*depth_pixel *    // dV_i/dD_i
-                                 fac;               // dD_i/dd_n
+                // contribution from variance image (G == E[d^2])                             
+                v_depth_local += v_variance_pixel * // dL/dV
+                                 1 *                // dV/dG
+                                 cor_factor *       // dG/dG_tilde
+                                 2*depth*fac;       // dG_tilde/dd_n
 
-                // contribution from variance image pixel term E[d^2]                              
-                v_depth_local += v_variance_pixel * // dL/dV_i
-                                 2*depth*fac;       // dV_i/dd_n
+                // compute intermediate value v_final_T = dL/dT_final
+                float v_final_T = 0.f;
+                
+                // contribution from depth image pixel 
+                v_final_T += v_depth_pixel *        // dL/dD
+                             depth_pixel*cor_factor;// dD/dT_final
 
-                // compute intermadiate value v_alpha = dL/da_n
+                // contribution from variance image pixel (G == E[d^2])
+                v_final_T += v_variance_pixel *         // dL/dV 
+                             1 *                        // dV/dG
+                             sq_depth_pixel*cor_factor; // dG/dT_final 
+
+                // contribution from alpha image pixel
+                v_final_T += v_out_alpha *          // dL/dA
+                             -1;                    // dA/dT_final
+
+                // contribution from rgb image pixel
+                v_final_T += v_out.x *              // dL/dC 
+                             background.x;          // dC/dT_final
+                v_final_T += v_out.y * background.y;          
+                v_final_T += v_out.z * background.z;          
+
+                // compute intermediate value v_alpha = dL/da_n
                 float v_alpha = 0.f;
 
                 // contribution from this pixel's gaussian rgb values
-                v_alpha += (rgb.x * T - buffer.x * ra) * v_out.x;
-                v_alpha += (rgb.y * T - buffer.y * ra) * v_out.y;
-                v_alpha += (rgb.z * T - buffer.z * ra) * v_out.z;
-                // contribution from this pixels background rgb values
-                v_alpha += -T_final * ra * background.x * v_out.x;
-                v_alpha += -T_final * ra * background.y * v_out.y;
-                v_alpha += -T_final * ra * background.z * v_out.z;
-                // contribution from depth image pixel
-                v_alpha += v_depth_pixel *                      // dL/dD_i
-                           (depth * T - depth_buffer * ra);     // dD_i/da_n
-                // contribution from variance image pixel term E[d]^2
-                v_alpha += v_variance_pixel *                   // dL/dV_i  
-                           2*depth_pixel *                      // dV_i/dD_i
-                           (depth * T - variance_buffer * ra);  // dD_i/da_n     
-                // contribution from variance image pixel term E[d^2]                  
-                v_alpha += v_variance_pixel *                   // dL/dV_i
-                           (depth_sq*T - variance_buffer * ra); // dV_i/da_n
-                // contribution from alpha image
-                v_alpha += T_final * ra * v_out_alpha;
+                v_alpha += 
+                    v_out.x *                       // dL/dC
+                    (rgb.x * T - buffer.x * ra);    // dC/da_n              
+                // similarly for other 2 channels
+                v_alpha += v_out.y * (rgb.y * T - buffer.y * ra);                    
+                v_alpha += v_out.z * (rgb.z * T - buffer.z * ra);
+
+                // contribution from depth image
+                v_alpha += 
+                    v_depth_pixel *                 // dL/dD
+                    cor_factor *                    // dD/dD_tilde
+                    (depth * T - depth_buffer * ra);// dD_tilde/da_n
+
+                // contribution from variance image (G == E[d^2])
+                v_alpha +=              
+                    v_variance_pixel *                  // dL/dV
+                    1 *                                 // dV/dG
+                    cor_factor *                        // dG/dG_tilde
+                    (depth_sq*T - depth_sq_buffer*ra);  // dG_tilde/da_n 
+
+                // contribution from the previously computed v_final_T
+                v_alpha +=
+                    v_final_T *                     // dL/dT_final
+                    (- T_final * ra);               // dT_final/da_n
 
                 // update the running sum
                 buffer.x        += rgb.x    * fac;
                 buffer.y        += rgb.y    * fac;
                 buffer.z        += rgb.z    * fac;
                 depth_buffer    += depth    * fac; 
-                variance_buffer += depth_sq * fac;
+                depth_sq_buffer += depth_sq * fac;
 
                 const float v_sigma = -opac * vis * v_alpha;
                 v_conic_local = {0.5f * v_sigma * delta.x * delta.x, 

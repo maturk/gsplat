@@ -793,7 +793,7 @@ std::
         *(float3 *)background.contiguous().data_ptr<float>(),
         final_Ts.contiguous().data_ptr<float>(),
         final_idx.contiguous().data_ptr<int>(),
-        depth_out.contiguous().data_ptr<float>(),
+        (float2 *)depth_out.contiguous().data_ptr<float>(),
         (float3 *)v_output.contiguous().data_ptr<float>(),
         v_output_alpha.contiguous().data_ptr<float>(),
         (float2 *)v_depth_out.contiguous().data_ptr<float>(),
